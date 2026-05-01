@@ -4,6 +4,8 @@ import numpy as np
 from basics.basics.model import BasicsTransformerLM
 import torch.cuda.nvtx as nvtx
 import timeit
+from datetime import datetime
+import os
 
 import contextlib
 
@@ -23,6 +25,7 @@ def get_arguments():
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--autocast", action="store_true")
     parser.add_argument("--bf16", action="store_true")
+    parser.add_argument("--profile-memory", action="store_true")
 
     return parser.parse_args()
 
@@ -76,6 +79,7 @@ def main():
             return torch.autocast(device_type=device.type, dtype=target_dtype)
         return contextlib.nullcontext()
 
+    # A single pass
     def one_step(phase_name = 'measurement'): 
         if args.optimizer: 
             optimizer.zero_grad()
@@ -101,6 +105,10 @@ def main():
             one_step(phase_name="warmup")
             if device.type == 'cuda':
                 torch.cuda.synchronize()
+
+    # Memory Profiling
+    if args.profile_memory and device.type == "cuda":
+        torch.cuda.memory._record_memory_history(max_entries=100000)
         
     # Measuring Performance
     lap_times = []
@@ -118,6 +126,17 @@ def main():
         
             # one lap is end - start
             lap_times.append(timeit.default_timer() - start_time)
+
+    # End Memory Profiling
+    if args.profile_memory and device.type == "cuda":
+        os.makedirs("memory-profiles", exist_ok=True)
+        context = args.context_length
+        mode = 'train' if args.optimizer else 'inference'
+        precision = 'fp16' if args.autocast else 'fp32'
+        filename = f'memorydump-{mode}-{precision}-{context}-{datetime.now().strftime("%Y%m%d_%H%M%S")}.pickle'
+        torch.cuda.memory._dump_snapshot(os.path.join("memory-profiles", filename))
+        torch.cuda.memory._record_memory_history(enabled=None)
+        print(f'Memory Snapshot saved to {os.path.join("memory-profiles", filename)}')
 
     mean_time = np.mean(lap_times)
     std_time = np.std(lap_times)
