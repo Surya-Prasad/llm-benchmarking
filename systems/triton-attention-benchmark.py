@@ -3,6 +3,7 @@ import triton #type: ignore
 import pandas as pd
 import math
 from datetime import datetime
+import os
 
 from basics.basics.model import scaled_dot_product_attention
 from systems.triton_flashattn2 import TritonFlashAttention2
@@ -90,7 +91,9 @@ def run_benchmark():
     print("| Flash Attention 2 Benchmark |")
     print("="*80)
     print(df)
-    df.to_csv(f"flash_attention_benchmark_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", index=False)
+    benchmark_dir = 'benchmark-dir'
+    os.makedirs(benchmark_dir, exist_ok=True)
+    df.to_csv(os.path.join(benchmark_dir, f"flash_attention_benchmark_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"), index=False)
 
 if __name__ == "__main__":
     run_benchmark()
