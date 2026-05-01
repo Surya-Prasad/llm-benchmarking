@@ -114,6 +114,44 @@ def flash_fwd_kernel(
     tl.store(l_ptrs, L_i)
 
 
+@torch.compile
+def flash_backward_fn(Q, K, V, O, dO, L, is_causal=False):
+    d = Q.shape[-1]
+    scale = 1.0 / math.sqrt(d)
+    
+    # S = QK^T / sqrt(d)
+    S = torch.bmm(Q, K.transpose(1, 2)) * scale
+    
+    if is_causal:
+        q_idx = torch.arange(Q.shape[1], device=Q.device)[:, None]
+        k_idx = torch.arange(K.shape[1], device=K.device)[None, :]
+        mask = q_idx >= k_idx
+        S = torch.where(mask[None, :, :], S, float('-inf'))
+        
+    # P = exp(S - L)
+    P = torch.exp(S - L.unsqueeze(-1))
+    
+    # D = rowsum(O * dO)
+    D = torch.sum(O * dO, dim=-1, keepdim=True)
+    
+    # dV = P^T dO
+    dV = torch.bmm(P.transpose(1, 2), dO)
+    
+    # dP = dO V^T
+    dP = torch.bmm(dO, V.transpose(1, 2))
+    
+    # dS = P * (dP - D)
+    dS = P * (dP - D)
+    
+    # dQ = dS K / sqrt(d)
+    dQ = torch.bmm(dS, K) * scale
+
+    # dK = dS^T Q / sqrt(d)
+    dK = torch.bmm(dS.transpose(1, 2), Q) * scale
+    
+    return dQ, dK, dV
+
+
 class TritonFlashAttention2(torch.autograd.Function):
     @staticmethod
     def forward(ctx, Q, K, V, is_causal=False):
@@ -149,4 +187,7 @@ class TritonFlashAttention2(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_out):
-        raise NotImplementedError
+        L, Q, K, V, O = ctx.saved_tensors
+        is_causal = ctx.is_causal
+        dQ, dK, dV = flash_backward_fn(Q, K, V, O, grad_out, L, is_causal)
+        return dQ, dK, dV, None
