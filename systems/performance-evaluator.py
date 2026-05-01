@@ -133,9 +133,9 @@ def main():
     # Autocast Check
     if args.autocast:
         precision_str = "bf16" if args.bf16 else "fp16"
-        mode += f"| (Autocast: {precision_str})"
+        mode += f" | (Autocast: {precision_str})"
     else:
-        mode += "| (FP32)"
+        mode += " | (FP32)"
 
     print(f"Mode of Running: {mode}")
     print(f"Mean time: {mean_time:.4f} seconds")
