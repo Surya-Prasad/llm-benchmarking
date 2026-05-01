@@ -161,8 +161,13 @@ class TritonFlashAttention2(torch.autograd.Function):
         O = torch.empty_like(Q)
         L = torch.empty((B, N_q), device=Q.device, dtype=torch.float32)
 
-        Q_TILE_SIZE = 64
-        K_TILE_SIZE = 64
+        # Reducing tile sizes so the tests pass and I can eat dinner
+        if d >= 128:
+            Q_TILE_SIZE = 32
+            K_TILE_SIZE = 32
+        else:
+            Q_TILE_SIZE = 64
+            K_TILE_SIZE = 64
 
         grid = (triton.cdiv(N_q, Q_TILE_SIZE), B)
         scale = 1.0 / (d ** 0.5)
