@@ -26,6 +26,7 @@ def get_arguments():
     parser.add_argument("--autocast", action="store_true")
     parser.add_argument("--bf16", action="store_true")
     parser.add_argument("--profile-memory", action="store_true")
+    parser.add_argument("--compile", action="store_true")
 
     return parser.parse_args()
 
