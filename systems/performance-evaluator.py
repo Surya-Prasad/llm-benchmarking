@@ -55,6 +55,10 @@ def main():
         rope_theta=10000
     ).to(device)
 
+    # JIT Compile
+    if args.compile:
+        model = torch.compile(model)
+
     # Random data
     x = torch.randint(
         0, 
