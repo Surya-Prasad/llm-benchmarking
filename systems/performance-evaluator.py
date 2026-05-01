@@ -22,6 +22,7 @@ def get_arguments():
     parser.add_argument("--optimizer", action="store_true")
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--autocast", action="store_true")
+    parser.add_argument("--bf16", action="store_true")
 
     return parser.parse_args()
 
@@ -71,7 +72,8 @@ def main():
     # For autocast cases
     def get_autocast_context():
         if args.autocast and device.type == "cuda":
-            return torch.autocast(device_type=device.type, dtype=torch.float16)
+            target_dtype = torch.bfloat16 if args.bf16 else torch.float16
+            return torch.autocast(device_type=device.type, dtype=target_dtype)
         return contextlib.nullcontext()
 
     def one_step(phase_name = 'measurement'): 
@@ -127,6 +129,13 @@ def main():
         mode = "forward+backward"
     else: 
         mode = "only-forward"
+
+    # Autocast Check
+    if args.autocast:
+        precision_str = "bf16" if args.bf16 else "fp16"
+        mode += f"| (Autocast: {precision_str})"
+    else:
+        mode += "| (FP32)"
 
     print(f"Mode of Running: {mode}")
     print(f"Mean time: {mean_time:.4f} seconds")
