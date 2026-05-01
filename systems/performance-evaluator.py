@@ -21,6 +21,7 @@ def get_arguments():
     parser.add_argument('--backward', action="store_true")
     parser.add_argument("--optimizer", action="store_true")
     parser.add_argument("--profile", action="store_true")
+    parser.add_argument("--autocast", action="store_true")
 
     return parser.parse_args()
 
@@ -67,17 +68,25 @@ def main():
             return torch.cuda.nvtx.range(name)
         return contextlib.nullcontext()
 
+    # For autocast cases
+    def get_autocast_context():
+        if args.autocast and device.type == "cuda":
+            return torch.autocast(device_type=device.type, dtype=torch.float16)
+        return contextlib.nullcontext()
+
     def one_step(phase_name = 'measurement'): 
         if args.optimizer: 
             optimizer.zero_grad()
 
+        # forward
         with get_nvtx_range(f"{phase_name}-forward-pass"):
-            # forward
-            logits = model(x)
+            with get_autocast_context():    
+                logits = model(x)
 
         if args.backward or args.optimizer:
             with get_nvtx_range(f"{phase_name}-loss-or-backward-pass"):
-                loss = loss_fn(logits.view(-1, args.vocab_size), dummy.view(-1))
+                with get_autocast_context():
+                    loss = loss_fn(logits.view(-1, args.vocab_size), dummy.view(-1))
                 loss.backward()
 
         if args.optimizer:
