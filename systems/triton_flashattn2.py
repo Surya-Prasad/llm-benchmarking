@@ -130,6 +130,7 @@ def flash_backward_fn(Q, K, V, O, dO, L, is_causal=False):
         
     # P = exp(S - L)
     P = torch.exp(S - L.unsqueeze(-1))
+    P = P.to(Q.dtype)
     
     # D = rowsum(O * dO)
     D = torch.sum(O * dO, dim=-1, keepdim=True)
@@ -142,7 +143,8 @@ def flash_backward_fn(Q, K, V, O, dO, L, is_causal=False):
     
     # dS = P * (dP - D)
     dS = P * (dP - D)
-    
+    dS = (P * (dP - D)).to(Q.dtype)
+
     # dQ = dS K / sqrt(d)
     dQ = torch.bmm(dS, K) * scale
 
